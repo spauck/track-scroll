@@ -3,7 +3,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -20,13 +19,12 @@ var dll = syscall.NewLazyDLL("user32.dll")
 // See: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mouse_event
 var procMouseEvent = dll.NewProc("mouse_event")
 var moveWheel = uintptr(0x0800)
+var logE = log.New(os.Stderr, "ERROR: ", log.LstdFlags)
+var logI = log.New(os.Stdout, "INFO: ", log.LstdFlags)
 
 func main() {
-	log.SetFlags(0)
-	log.SetPrefix("error: ")
-
 	if err := run(); err != nil {
-		log.Fatal(err)
+		logE.Fatal(err)
 	}
 }
 
@@ -41,12 +39,12 @@ func run() (err error) {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
 
-	fmt.Println("Start capturing mouse input")
+	logI.Println("Start capturing mouse input")
 
 	for {
 		select {
 		case <-signalChan:
-			fmt.Println("Received shutdown signal")
+			logI.Println("Received shutdown signal")
 			return nil
 		case <-mouseChan:
 			continue
