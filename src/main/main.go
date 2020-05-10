@@ -100,7 +100,12 @@ func mouseHandler(c chan<- types.MouseEvent) types.HOOKPROC {
 				state = 2
 				mY = m.Y
 			case 2:
-				moveAmount := (mY - m.Y) * 4
+				moveAmount := (mY - m.Y)
+				if moveAmount > 0 {
+					moveAmount *= moveAmount
+				} else {
+					moveAmount *= -moveAmount
+				}
 				go procMouseEvent.Call(moveWheel, 0, 0, uintptr(moveAmount), 0)
 				return 1
 			}
