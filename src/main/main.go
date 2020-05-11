@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"unsafe"
 
@@ -21,6 +22,13 @@ var procMouseEvent = dll.NewProc("mouse_event")
 var moveWheel = uintptr(0x0800)
 var logE = log.New(os.Stderr, "ERROR: ", log.LstdFlags)
 var logI = log.New(os.Stdout, "INFO: ", log.LstdFlags)
+var configScaleYLin int32
+var configScaleYQuad int32
+
+var defaultConfig = map[string]string{
+	"TRACK_SCALE_Y_LINEAR":    "1",
+	"TRACK_SCALE_Y_QUADRATIC": "1",
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -28,7 +36,32 @@ func main() {
 	}
 }
 
+// Use a value set in an environment variable, else use default
+func config(key string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		val = defaultConfig[key]
+	}
+	logI.Printf("Using %s=%s", key, val)
+	return val
+}
+
 func run() (err error) {
+
+	logI.Printf("Checking environment variables for configuration")
+
+	configScaleYLin_64, err := strconv.ParseInt(config("TRACK_SCALE_Y_LINEAR"), 0, 32)
+	if err != nil {
+		return err
+	}
+	configScaleYLin = int32(configScaleYLin_64)
+
+	configScaleYQuad_64, err := strconv.ParseInt(config("TRACK_SCALE_Y_QUADRATIC"), 0, 32)
+	if err != nil {
+		return err
+	}
+	configScaleYQuad = int32(configScaleYQuad_64)
+
 	// Not sure what the buffer size should be?
 	mouseChan := make(chan types.MouseEvent, 100)
 	if err := mouse.Install(mouseHandler, mouseChan); err != nil {
@@ -98,11 +131,14 @@ func mouseHandler(c chan<- types.MouseEvent) types.HOOKPROC {
 				state = 2
 				mY = m.Y
 			case 2:
-				moveAmount := (mY - m.Y)
-				if moveAmount > 0 {
-					moveAmount *= moveAmount
-				} else {
-					moveAmount *= -moveAmount
+				yDiff := (mY - m.Y)
+				moveAmount := yDiff * configScaleYLin
+				if configScaleYQuad != 0 {
+					if yDiff > 0 {
+						moveAmount += yDiff * yDiff * configScaleYQuad / 64
+					} else {
+						moveAmount -= yDiff * yDiff * configScaleYQuad / 64
+					}
 				}
 				go procMouseEvent.Call(moveWheel, 0, 0, uintptr(moveAmount), 0)
 				return 1
